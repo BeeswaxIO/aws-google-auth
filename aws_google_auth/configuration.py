@@ -103,7 +103,6 @@ class Configuration(object):
 
         return self.__google_cookies
 
-
     @google_cookies.setter
     def google_cookies(self, value):
         self.__google_cookies = value
