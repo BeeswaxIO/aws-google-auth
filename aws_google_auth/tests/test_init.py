@@ -56,6 +56,7 @@ class TestInit(unittest.TestCase):
                                          save_failure_html=False,
                                          saml_cache=True,
                                          saml_assertion=None,
+                                         google_cookies=True,
                                          sp_id=None,
                                          log_level='warn',
                                          print_creds=False,
@@ -77,6 +78,7 @@ class TestInit(unittest.TestCase):
                                          save_failure_html=False,
                                          saml_cache=True,
                                          saml_assertion=None,
+                                         google_cookies=True,
                                          sp_id=None,
                                          log_level='warn',
                                          print_creds=False,
@@ -95,6 +97,7 @@ class TestInit(unittest.TestCase):
         mock_config = Mock()
         mock_config.profile = False
         mock_config.saml_cache = False
+        mock_config.google_cookies = False
         mock_config.keyring = False
         mock_config.username = None
         mock_config.idp_id = None
@@ -143,7 +146,7 @@ class TestInit(unittest.TestCase):
                                                 'arn:aws:iam::123456789012:role/admin': 'arn:aws:iam::123456789012:saml-provider/GoogleApps'}, [])],
                          mock_util.mock_calls)
 
-        self.assertEqual([call.do_login(), call.parse_saml()],
+        self.assertEqual([call.do_login(), call.parse_saml(), call.dump_cookies()],
                          mock_google_client.mock_calls)
 
         self.assertEqual([call.raise_if_invalid()],
@@ -165,6 +168,7 @@ class TestInit(unittest.TestCase):
         mock_config = Mock()
         mock_config.profile = False
         mock_config.saml_cache = False
+        mock_config.google_cookies = False
         mock_config.keyring = False
         mock_config.username = None
         mock_config.idp_id = None
@@ -216,7 +220,7 @@ class TestInit(unittest.TestCase):
                                                 [])],
                          mock_util.mock_calls)
 
-        self.assertEqual([call.do_login(), call.parse_saml()],
+        self.assertEqual([call.do_login(), call.parse_saml(), call.dump_cookies()],
                          mock_google_client.mock_calls)
 
         self.assertEqual([call.raise_if_invalid()],
@@ -243,6 +247,7 @@ class TestInit(unittest.TestCase):
 
         mock_config = Mock()
         mock_config.saml_cache = False
+        mock_config.google_cookies = False
         mock_config.keyring = False
         mock_config.username = None
         mock_config.idp_id = None
@@ -292,7 +297,7 @@ class TestInit(unittest.TestCase):
                           call.Util.get_password('Google Password: ')],
                          mock_util.mock_calls)
 
-        self.assertEqual([call.do_login(), call.parse_saml()],
+        self.assertEqual([call.do_login(), call.parse_saml(), call.dump_cookies()],
                          mock_google_client.mock_calls)
 
         self.assertEqual([call.raise_if_invalid(),
@@ -312,6 +317,7 @@ class TestInit(unittest.TestCase):
 
         mock_config = Mock()
         mock_config.saml_cache = False
+        mock_config.google_cookies = False
         mock_config.resolve_aliases = False
         mock_config.username = None
         mock_config.idp_id = None
@@ -361,7 +367,7 @@ class TestInit(unittest.TestCase):
                                                 'arn:aws:iam::123456789012:role/admin': 'arn:aws:iam::123456789012:saml-provider/GoogleApps'})],
                          mock_util.mock_calls)
 
-        self.assertEqual([call.do_login(), call.parse_saml()],
+        self.assertEqual([call.do_login(), call.parse_saml(), call.dump_cookies()],
                          mock_google_client.mock_calls)
 
         self.assertEqual([call.raise_if_invalid(),
@@ -382,6 +388,7 @@ class TestInit(unittest.TestCase):
 
         mock_config = Mock()
         mock_config.saml_cache = False
+        mock_config.google_cookies = False
         mock_config.keyring = False
         mock_config.username = None
         mock_config.idp_id = None
@@ -432,7 +439,7 @@ class TestInit(unittest.TestCase):
                                                 'arn:aws:iam::123456789012:role/admin': 'arn:aws:iam::123456789012:saml-provider/GoogleApps'}, [])],
                          mock_util.mock_calls)
 
-        self.assertEqual([call.do_login(), call.parse_saml()],
+        self.assertEqual([call.do_login(), call.parse_saml(), call.dump_cookies()],
                          mock_google_client.mock_calls)
 
         self.assertEqual([call.raise_if_invalid(),
@@ -455,6 +462,7 @@ class TestInit(unittest.TestCase):
 
         mock_config = Mock()
         mock_config.saml_cache = True
+        mock_config.google_cookies = False
         mock_config.username = None
         mock_config.idp_id = None
         mock_config.sp_id = None

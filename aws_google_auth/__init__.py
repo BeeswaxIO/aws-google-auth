@@ -28,13 +28,16 @@ def parse_args(args):
     parser.add_argument('-I', '--idp-id', help='Google SSO IDP identifier ($GOOGLE_IDP_ID)')
     parser.add_argument('-S', '--sp-id', help='Google SSO SP identifier ($GOOGLE_SP_ID)')
     parser.add_argument('-R', '--region', help='AWS region endpoint ($AWS_DEFAULT_REGION)')
-    parser.add_argument('-d', '--duration', type=int, help='Credential duration ($DURATION)')
+    duration_group = parser.add_mutually_exclusive_group()
+    duration_group.add_argument('-d', '--duration', type=int, help='Credential duration in seconds ($DURATION)')
+    duration_group.add_argument('--auto-duration', action='store_true', help='Tries to use the longest allowed duration ($AUTO_DURATION)')
     parser.add_argument('-p', '--profile', help='AWS profile (defaults to value of $AWS_PROFILE, then falls back to \'sts\')')
     parser.add_argument('-D', '--disable-u2f', action='store_true', help='Disable U2F functionality.')
     parser.add_argument('-q', '--quiet', action='store_true', help='Quiet output')
     parser.add_argument('--bg-response', help='Override default bgresponse challenge token.')
     parser.add_argument('--saml-assertion', dest="saml_assertion", help='Base64 encoded SAML assertion to use.')
     parser.add_argument('--no-cache', dest="saml_cache", action='store_false', help='Do not cache the SAML Assertion.')
+    parser.add_argument('--no-cookies-cache', dest="google_cookies", action='store_false', help='Do not cache the Google cookies.')
     parser.add_argument('--print-creds', action='store_true', help='Print Credentials.')
     parser.add_argument('--resolve-aliases', action='store_true', help='Resolve AWS account aliases.')
     parser.add_argument('--save-failure-html', action='store_true', help='Write HTML failure responses to file for troubleshooting.')
@@ -113,6 +116,13 @@ def resolve_config(args):
         os.getenv('DURATION'),
         config.duration))
 
+    # Automatic duration (Option priority = ARGS, ENV_VAR, DEFAULT)
+    config.auto_duration = coalesce(
+        args.auto_duration,
+        os.getenv('AUTO_DURATION'),
+        config.auto_duration
+    )
+
     # IDP ID (Option priority = ARGS, ENV_VAR, DEFAULT)
     config.idp_id = coalesce(
         args.idp_id,
@@ -180,6 +190,7 @@ def process_auth(args, config):
     # Set up logging
     logging.getLogger().setLevel(getattr(logging, args.log_level.upper(), None))
 
+    google_cookies = None
     # If there is a valid cache and the user opted to use it, use that instead
     # of prompting the user for input (it will also ignroe any set variables
     # such as username or sp_id and idp_id, as those are built into the SAML
@@ -190,6 +201,13 @@ def process_auth(args, config):
     elif args.saml_cache and config.saml_cache:
         saml_xml = config.saml_cache
         logging.info('%s: SAML cache found', __name__)
+    elif args.google_cookies and config.google_cookies:
+        # Google cookies found
+        google_client = google.Google(config, args.save_failure_html)
+        google_client.load_cookies(config.google_cookies)
+        google_client.do_login()
+        saml_xml = google_client.parse_saml()
+        logging.debug('%s: saml assertion is: %s', __name__, saml_xml)
     else:
         # No cache, continue without.
         logging.info('%s: SAML cache not found', __name__)
@@ -222,6 +240,8 @@ def process_auth(args, config):
         google_client.do_login()
         saml_xml = google_client.parse_saml()
         logging.debug('%s: saml assertion is: %s', __name__, saml_xml)
+        google_cookies = google_client.dump_cookies()
+        logging.debug('%s: google cookies are: %s', __name__, google_cookies)
 
         # If we logged in correctly and we are using keyring then store the password
         if config.keyring and keyring_password is None:
@@ -232,6 +252,10 @@ def process_auth(args, config):
     # for it to be)
     if args.saml_cache:
         config.saml_cache = saml_xml
+
+    # Cache Google cookies and store them if requested
+    if args.google_cookies and google_cookies:
+        config.google_cookies = google_cookies
 
     # The amazon_client now has the SAML assertion it needed (Either via the
     # cache or freshly generated). From here, we can get the roles and continue

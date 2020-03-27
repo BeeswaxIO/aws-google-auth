@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 import os
+import json
+from datetime import datetime
 
 import botocore.session
 
@@ -23,12 +25,14 @@ class Configuration(object):
         self.ask_role = False
         self.keyring = False
         self.duration = self.max_duration
+        self.auto_duration = False
         self.idp_id = None
         self.password = None
         self.profile = "sts"
         self.region = "ap-southeast-2"
         self.role_arn = None
         self.__saml_cache = None
+        self.__google_cookies = None
         self.sp_id = None
         self.u2f_disabled = False
         self.resolve_aliases = False
@@ -86,6 +90,24 @@ class Configuration(object):
     def saml_cache(self, value):
         self.__saml_cache = value
 
+    @property
+    def google_cookies_file(self):
+        return self.credentials_file.replace('credentials', 'google_cookies.json')
+
+    # Will return Google cookies in a dict only when non of them have expired.
+    @property
+    def google_cookies(self):
+        if self.__google_cookies and not all([
+            datetime.timestamp(datetime.now()) < c['expires'] for c in self.__google_cookies
+        ]):
+            self.__google_cookies = None
+
+        return self.__google_cookies
+
+    @google_cookies.setter
+    def google_cookies(self, value):
+        self.__google_cookies = value
+
     # Will raise exceptions if the configuration is invalid, otherwise returns
     # None. Use this at any point to validate the configuration is in a good
     # state. There are no checks here regarding SAML caching, as that's just a
@@ -100,8 +122,11 @@ class Configuration(object):
 
         # duration
         assert (self.duration.__class__ is int), "Expected duration to be an integer. Got {}.".format(self.duration.__class__)
-        assert (self.duration > 0), "Expected duration to be greater than 0. Got {}.".format(self.duration)
+        assert (self.duration >= 900), "Expected duration to be greater than or equal to 900. Got {}.".format(self.duration)
         assert (self.duration <= self.max_duration), "Expected duration to be less than or equal to max_duration ({}). Got {}.".format(self.max_duration, self.duration)
+
+        # auto_duration
+        assert (self.auto_duration.__class__ is bool), "Expected auto_duration to be a boolean. Got {}.".format(self.auto_duration.__class__)
 
         # profile
         assert (self.profile.__class__ is str), "Expected profile to be a string. Got {}.".format(self.profile.__class__)
@@ -182,6 +207,10 @@ class Configuration(object):
             with open(self.saml_cache_file, 'w') as f:
                 f.write(self.__saml_cache.decode("utf-8"))
 
+        if self.__google_cookies is not None:
+            with open(self.google_cookies_file, 'w') as f:
+                f.write(json.dumps(self.__google_cookies, indent=2))
+
     # Read from the configuration file and override ALL values currently stored
     # in the configuration object. As this is potentially destructive, it's
     # important to only run this in the beginning of the object initialization.
@@ -245,5 +274,12 @@ class Configuration(object):
         try:
             with open(self.saml_cache_file, 'r') as f:
                 self.__saml_cache = f.read().encode("utf-8")
+        except IOError:
+            pass
+
+        # Google cookies
+        try:
+            with open(self.google_cookies_file, 'r') as f:
+                self.__google_cookies = json.loads(f.read())
         except IOError:
             pass
