@@ -79,7 +79,7 @@ class Amazon:
         doc = etree.fromstring(self.saml_xml)
         roles = {}
         for x in doc.xpath('//*[@Name = "https://aws.amazon.com/SAML/Attributes/Role"]//text()'):
-            if "arn:aws:iam:" in x:
+            if "arn:aws:iam:" in x or "arn:aws-us-gov:iam:" in x:
                 res = x.split(',')
                 roles[res[0]] = res[1]
         return roles
@@ -98,13 +98,12 @@ class Amazon:
             try:
                 res = self.sts_client.assume_role_with_saml(**sts_call_vars)
             except ClientError as err:
-                if (err.response.get('Error', []).get('Code') == 'ValidationError'
-                        and err.response.get('Error', []).get('Message')):
+                if (err.response.get('Error', []).get('Code') == 'ValidationError' and err.response.get('Error', []).get('Message')):
                     m = re.search(
                         'Member must have value less than or equal to ([0-9]{3,5})',
                         err.response['Error']['Message']
                     )
-                    if m.group(1):
+                    if m is not None and m.group(1):
                         new_duration = int(m.group(1))
                         return self.assume_role(role, principal,
                                                 saml_assertion,

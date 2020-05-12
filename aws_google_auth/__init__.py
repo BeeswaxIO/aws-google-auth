@@ -29,15 +29,16 @@ def parse_args(args):
     parser.add_argument('-S', '--sp-id', help='Google SSO SP identifier ($GOOGLE_SP_ID)')
     parser.add_argument('-R', '--region', help='AWS region endpoint ($AWS_DEFAULT_REGION)')
     duration_group = parser.add_mutually_exclusive_group()
-    duration_group.add_argument('-d', '--duration', type=int, help='Credential duration in seconds ($DURATION)')
+    duration_group.add_argument('-d', '--duration', type=int, help='Credential duration in seconds (defaults to value of $DURATION, then falls back to 43200)')
     duration_group.add_argument('--auto-duration', action='store_true', help='Tries to use the longest allowed duration ($AUTO_DURATION)')
     parser.add_argument('-p', '--profile', help='AWS profile (defaults to value of $AWS_PROFILE, then falls back to \'sts\')')
+    parser.add_argument('-A', '--account', help='Filter for specific AWS account.')
     parser.add_argument('-D', '--disable-u2f', action='store_true', help='Disable U2F functionality.')
     parser.add_argument('-q', '--quiet', action='store_true', help='Quiet output')
     parser.add_argument('--bg-response', help='Override default bgresponse challenge token.')
     parser.add_argument('--saml-assertion', dest="saml_assertion", help='Base64 encoded SAML assertion to use.')
     parser.add_argument('--no-cache', dest="saml_cache", action='store_false', help='Do not cache the SAML Assertion.')
-    parser.add_argument('--no-cookies-cache', dest="google_cookies", action='store_false', help='Do not cache the Google cookies.')
+    parser.add_argument('--cache-cookies', dest="google_cookies", action='store_true', help='Cache the Google session cookies.')
     parser.add_argument('--print-creds', action='store_true', help='Print Credentials.')
     parser.add_argument('--resolve-aliases', action='store_true', help='Resolve AWS account aliases.')
     parser.add_argument('--save-failure-html', action='store_true', help='Write HTML failure responses to file for troubleshooting.')
@@ -165,6 +166,12 @@ def resolve_config(args):
         os.getenv('GOOGLE_USERNAME'),
         config.username)
 
+    # Account (Option priority = ARGS, ENV_VAR, DEFAULT)
+    config.account = coalesce(
+        args.account,
+        os.getenv('AWS_ACCOUNT'),
+        config.account)
+
     config.keyring = coalesce(
         args.keyring,
         config.keyring)
@@ -190,6 +197,10 @@ def process_auth(args, config):
     # Set up logging
     logging.getLogger().setLevel(getattr(logging, args.log_level.upper(), None))
 
+    if config.region is None:
+        config.region = util.Util.get_input("AWS Region: ")
+        logging.debug('%s: region is: %s', __name__, config.region)
+
     google_cookies = None
     # If there is a valid cache and the user opted to use it, use that instead
     # of prompting the user for input (it will also ignroe any set variables
@@ -206,6 +217,11 @@ def process_auth(args, config):
         google_client = google.Google(config, args.save_failure_html)
         google_client.load_cookies(config.google_cookies)
         google_client.do_login()
+        # If login fails cookies are probably bad, unset and try again
+        if google_client.do_login() == False:
+            config.google_cookies = None
+            process_auth(args, config)
+            return
         saml_xml = google_client.parse_saml()
         logging.debug('%s: saml assertion is: %s', __name__, saml_xml)
     else:
@@ -267,7 +283,12 @@ def process_auth(args, config):
     if config.role_arn in roles and not config.ask_role:
         config.provider = roles[config.role_arn]
     else:
-        if config.resolve_aliases:
+        if config.account and config.resolve_aliases:
+            aliases = amazon_client.resolve_aws_aliases(roles)
+            config.role_arn, config.provider = util.Util.pick_a_role(roles, aliases, config.account)
+        elif config.account:
+            config.role_arn, config.provider = util.Util.pick_a_role(roles, account=config.account)
+        elif config.resolve_aliases:
             aliases = amazon_client.resolve_aws_aliases(roles)
             config.role_arn, config.provider = util.Util.pick_a_role(roles, aliases)
         else:
