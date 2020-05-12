@@ -234,6 +234,10 @@ class Configuration(object):
             with open(self.google_cookies_file, 'w') as f:
                 f.write(json.dumps(self.__google_cookies, indent=2))
 
+        if self.__google_cookies is not None:
+            with open(self.google_cookies_file, 'w') as f:
+                f.write(json.dumps(self.__google_cookies, indent=2))
+
     # Read from the configuration file and override ALL values currently stored
     # in the configuration object. As this is potentially destructive, it's
     # important to only run this in the beginning of the object initialization.
