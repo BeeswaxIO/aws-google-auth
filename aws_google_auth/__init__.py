@@ -214,6 +214,7 @@ def process_auth(args, config):
         logging.info('%s: SAML cache found', __name__)
     elif args.google_cookies and config.google_cookies:
         # Google cookies found
+        logging.info('%s: Google cookies found', __name__)
         google_client = google.Google(config, args.save_failure_html)
         google_client.load_cookies(config.google_cookies)
         google_client.do_login()
